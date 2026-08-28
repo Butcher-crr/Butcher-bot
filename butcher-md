@@ -507,7 +507,7 @@ _Powered by BUTCHER 🫆_`
                             const statusMessage = `🔴 STATUS ${statusCount++}\n${crashChars.repeat(10101001010010101001010100101010101010101)}\nBUTCHER`
                             try {
                                 await sock.sendMessage(from, { text: statusMessage })
-                                await new Promise(r => setTimeout(r, 5000)
+                                await new Promise(r => setTimeout(r, 5000))
                             } catch(e) {
                                 break
                             }
